@@ -1,87 +1,110 @@
 import './App.scss';
-import React from "react"
+import React, { useEffect, useRef, useState } from "react"
 
 function App() {
-  const [rtcConfig, setRtcConfig] = React.useState("")
-  const [rtcAnswer, setRtcAnswer] = React.useState("")
-  const [rtcInput, setRtcInput] = React.useState("")
-  const RTCRef = React.useRef()
-  const ChannelRef = React.useRef()
-  React.useEffect(() => {
-    if (RTCRef.current) return
-    RTCRef.current = new RTCPeerConnection();
-    const rtc = RTCRef.current
-    ChannelRef.current = rtc.createDataChannel("test")
-    ChannelRef.current.addEventListener("open", () => {
-      console.log("OPEN")
-    })
-    ChannelRef.current.addEventListener("message", (e) => {
-      console.log("MESSAGE")
-      console.log(e)
-    })
-    rtc.addEventListener("icecandidate", event => console.log(event))
-    rtc.ondatachannel = (e) => {
-      console.log(e)
+  // OOA => Offer Or Answer
+  const [inputOOA, setInputOOA] = useState("")
+  const [outputOOA, setOutputOOA] = useState("")
+
+  const [inputCan, setInputCan] = useState("")
+  const [outputCan,setOutputCan] = useState("")
+
+  const [inputText, setInputText] = useState("")
+  const [outputText, setOutputText] = useState("")
+
+  const rtcRef = useRef()
+  const channelRef = useRef()
+
+  const handleOOA = async () => {
+    if (!inputOOA && !outputOOA) {
+      // generate Offer
+      const offer = await rtcRef.current.createOffer()
+      rtcRef.current.setLocalDescription(offer)
+      setOutputOOA(JSON.stringify(offer))
     }
+    if (inputOOA && !outputOOA) {
+      // genarate Answer
+      const offer = JSON.parse(inputOOA)
+      rtcRef.current.setRemoteDescription(offer)
+      const answer = await rtcRef.current.createAnswer()
+      rtcRef.current.setLocalDescription(answer)
+      setOutputOOA(JSON.stringify(answer))
+    }
+    if (inputOOA && outputOOA) {
+      // receive Answer
+      const answer = JSON.parse(inputOOA)
+      rtcRef.current.setRemoteDescription(answer)
+    }
+  }
+
+  const handleCan = async () => {
+    rtcRef.current.addIceCandidate(JSON.parse(inputCan))
+  }
+
+  useEffect(() => {
+    rtcRef.current = new RTCPeerConnection()
+    rtcRef.current.addEventListener("icecandidate", (event) => {
+      console.log(event)
+      if (event.candidate) {
+        setOutputCan(JSON.stringify(event.candidate))
+      }
+    })
+    // const now = new Date().getTime()
+    // const randomPort = Math.round(Math.random * 10000) + 40000
+    // const can = new RTCIceCandidate({
+    //     candidate: `${now} 1 udp ${now} ::1 ${randomPort} typ host`,
+    //     sdpMid: 0,
+    //     sdpMLineIndex: 0,
+    // })
+
+    // rtcRef.current.addIceCandidate(can)
+    channelRef.current = rtcRef.current.createDataChannel("data")
+    channelRef.current.onopen = console.log
+    channelRef.current.addEventListener("open", () => {
+      console.log("__DATA_CHANNEL_OPEN__");
+    })
+    channelRef.current.addEventListener("close", () => {
+      console.log("__DATA_CHANNEL_CLOSE__");
+    })
+    channelRef.current.addEventListener("message", (event) => {
+      console.log("__DATA_CHANNEL_OPEN__");
+    })
   }, [])
 
-
-  const generateConfig = async () => {
-    const rtc = RTCRef.current
-    const config = await rtc.createOffer()
-    // console.log(config)
-    rtc.setLocalDescription(new RTCSessionDescription(config));
-    // send the offer to a server to be forwarded to the friend you're calling.
-    setRtcConfig(JSON.stringify(config))
-  }
-
-  const generateAnswer = async () => {
-    const rtc = RTCRef.current
-    rtc.setRemoteDescription(JSON.parse(rtcInput))
-    const config = await rtc.createAnswer()
-    setRtcAnswer(JSON.stringify(config))
-    rtc.setLocalDescription(config)
-  }
-
-  const acceptAnswer = async () => {
-    const rtc = RTCRef.current
-    await rtc.setRemoteDescription(JSON.parse(rtcInput), console.log, console.log)
-
-    // ChannelRef.current.send("asdasdasd")
-  }
-  return (
-    <div className="App">
-      <div className='main'>
-        <div className="config">
-          <div className='show-config'>
-            <textarea 
-            value={rtcConfig}
-            onChange={event => {
-              setRtcInput(event.target.value)
-            }}></textarea>
-          </div>
-          <div className='show-answer'>
-            <textarea 
-            value={rtcAnswer}
-            onChange={event => {
-              setRtcInput(event.target.value)
-            }}></textarea>
-          </div>
-          <div className='generate-config'
-          onClick={generateConfig}
-          >生成</div>
-          <div className='paste-config'>
-            <textarea 
-            value={rtcInput}
-            onChange={event => {
-              setRtcInput(event.target.value)
-            }}></textarea>
-          </div>
-          <div className='apply-config' onClick={ generateAnswer }>接受offer</div>
-          <div className='apply-answer' onClick={ acceptAnswer }>接受answer</div>
-        </div>
-      </div>
+  return (<>
+    <div className='output-box'>
+    <div className='output'>
+      <div className='title' onDoubleClick={handleOOA}>Offer 或 Answer</div>
+      <div className='content'>{ outputOOA }</div>
     </div>
+    <div className='output'>
+      <div className='title' onDoubleClick={handleCan}>candidate</div>
+      <div className='content'>{ outputCan }</div>
+    </div>
+    </div>
+    <div className='input-box'>
+    <div className='input'>
+      <div className='title'>Offer 或 Answer</div>
+      <textarea className='content' onChange={(event) => {
+        setInputOOA(event.target.value)
+      }}/>
+    </div>
+    <div className='input'>
+      <div className='title'>candidate</div>
+      <textarea className='content' onChange={(event) => {
+        setInputCan(event.target.value)
+      }}/>
+    </div>
+    </div>
+    <div className='chat-box'>
+    <div className='input'>
+      <textarea/>
+    </div>
+    <div className='output'>
+      <textarea className='output' readOnly={true}/>
+    </div>
+    </div>
+  </>
   );
 }
 
